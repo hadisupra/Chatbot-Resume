@@ -1,63 +1,27 @@
 # importing all libraries needed
-from itertools import chain
 import os
-import sys
-import time
-import json
-import pandas as pd
-import numpy as np
-import pickle
-import langgraph
-# import sklearn
-from qdrant_client import QdrantClient
-import streamlit as st
-from langchain_community.docstore.in_memory import InMemoryDocstore #for allocating vector database storage (in RAM)
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI #for embedding and LLM service
-from langchain_core.tools import tool #import tool decorator
-from langchain_community.embeddings import HuggingFaceEmbeddings
-# from langchain.embeddings import HuggingFaceEmbeddings #import huggingface embedding
-from langchain_community.embeddings import OpenAIEmbeddings
-# from langchain.embeddings import OpenAIEmbeddings #import openai embedding
-from langchain.chains import RetrievalQA #import retrievalQA chain
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage #import message type
-from pydantic import BaseModel, Field #pydantic BaseModel and Field to create a data validation and data type definition
-from typing import List, Any #for list type and dynamic typing
-from langgraph.prebuilt import create_react_agent #import prebuilt-react agent from langgraph
-from datetime import datetime #for date and time
-from langchain_core.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate #import prompt template
-import sqlalchemy #import sql alchemy for database connection
-from sqlalchemy import create_engine #import create_engine for database connection
-from dotenv import load_dotenv #import load_dotenv to load environment variable from .env file
-from langchain_text_splitters import CharacterTextSplitter
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-"""
-Qdrant-backed Resume Assistant (RAG + ReAct Agent)
-"""
-
-import os
-import pandas as pd
-import streamlit as st
+from datetime import datetime
 from typing import List
 
+import pandas as pd
+import streamlit as st
 from dotenv import load_dotenv
-from datetime import datetime
-
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Qdrant
-from langchain.chains import RetrievalQA
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.chains import create_retrieval_chain
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from qdrant_client import QdrantClient
-import streamlit as st
 
 
 
-# ---- UI Header ----#
+ # ---- UI Header ----#
 st.set_page_config(page_title="Resume Assistant", page_icon="🧠", layout="centered")
 load_dotenv()
-
 
 # ---- Credentials ---- (prefer st.secrets -> env -> input)
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
@@ -200,12 +164,13 @@ if vector_store is None:
             st.stop()
 retriever = vector_store.as_retriever(search_kwargs={"k": TOP_K})
 
-# ---- QA Chain ----
-qa_chain = RetrievalQA.from_chain_type(
-    llm=ChatOpenAI(model=MODEL_CHAT, temperature=0),
-    chain_type="stuff",
-    retriever=retriever,
+# ---- RAG Chain (modern API) ----
+llm = ChatOpenAI(model=MODEL_CHAT, temperature=0)
+prompt = ChatPromptTemplate.from_template(
+    "You are a helpful assistant. Use the provided context to answer the question.\n\n{context}\n\nQuestion: {input}"
 )
+document_chain = create_stuff_documents_chain(llm, prompt)
+rag_chain = create_retrieval_chain(retriever, document_chain)
 
 # ---- Tools ----
 @tool
@@ -223,7 +188,9 @@ def search_resumes(query: str) -> str:
 @tool
 def answer_from_resumes(question: str) -> str:
     """Answer a question using the resume knowledge base via RAG."""
-    return qa_chain.run(question)
+    result = rag_chain.invoke({"input": question})
+    # result typically contains keys: { 'input': ..., 'context': [...], 'answer': '...' }
+    return result.get("answer", str(result))
 
 # ---- Agent ----
 agent = create_react_agent(
