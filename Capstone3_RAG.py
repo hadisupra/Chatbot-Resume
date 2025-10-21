@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import langgraph
-import sklearn
+# import sklearn
 from qdrant_client import QdrantClient
 import streamlit as st
 from langchain_community.docstore.in_memory import InMemoryDocstore #for allocating vector database storage (in RAM)
