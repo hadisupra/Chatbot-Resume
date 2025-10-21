@@ -9,10 +9,27 @@ from dotenv import load_dotenv
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Qdrant
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains import create_retrieval_chain
+# Version-robust imports: prefer new APIs, fallback later
+try:
+    from langchain.chains.combine_documents import create_stuff_documents_chain  # type: ignore
+except Exception:  # pragma: no cover - older langchain
+    create_stuff_documents_chain = None  # type: ignore
+try:
+    from langchain.chains import create_retrieval_chain  # type: ignore
+except Exception:  # pragma: no cover - older langchain
+    create_retrieval_chain = None  # type: ignore
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
+try:
+    from langchain_core.output_parsers import StrOutputParser  # type: ignore
+except Exception:  # pragma: no cover
+    StrOutputParser = None  # type: ignore
+try:
+    from langchain_core.runnables import RunnableLambda, RunnablePassthrough  # type: ignore
+except Exception:  # pragma: no cover
+    RunnableLambda = None  # type: ignore
+    RunnablePassthrough = None  # type: ignore
+from langchain_core.documents import Document
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from qdrant_client import QdrantClient
@@ -164,13 +181,41 @@ if vector_store is None:
             st.stop()
 retriever = vector_store.as_retriever(search_kwargs={"k": TOP_K})
 
-# ---- RAG Chain (modern API) ----
+# ---- RAG Chain (robust to LangChain versions) ----
 llm = ChatOpenAI(model=MODEL_CHAT, temperature=0)
 prompt = ChatPromptTemplate.from_template(
     "You are a helpful assistant. Use the provided context to answer the question.\n\n{context}\n\nQuestion: {input}"
 )
-document_chain = create_stuff_documents_chain(llm, prompt)
-rag_chain = create_retrieval_chain(retriever, document_chain)
+
+def _format_docs(docs: List[Document]) -> str:
+    return "\n\n".join(getattr(d, "page_content", str(d)) for d in docs or [])
+
+# Preferred: use official helpers when available
+if create_stuff_documents_chain and create_retrieval_chain:
+    document_chain = create_stuff_documents_chain(llm, prompt)
+    rag_chain = create_retrieval_chain(retriever, document_chain)
+else:
+    # Fallback: compose retrieval -> formatting -> prompt -> llm directly
+    if RunnableLambda and RunnablePassthrough:
+        chain = {
+            "context": retriever | RunnableLambda(_format_docs),
+            "input": RunnablePassthrough(),
+        } | prompt | llm
+        if StrOutputParser:
+            chain = chain | StrOutputParser()
+        rag_chain = chain
+    else:
+        # Last-resort simple callable; retriever returns List[Document]
+        def rag_chain(inputs: dict):  # type: ignore
+            question = inputs.get("input", "")
+            docs = retriever.get_relevant_documents(question)
+            context = _format_docs(docs)
+            msg = prompt.format_messages(context=context, input=question)
+            resp = llm.invoke(msg)
+            try:
+                return resp.content  # type: ignore[attr-defined]
+            except Exception:
+                return str(resp)
 
 # ---- Tools ----
 @tool
@@ -188,9 +233,20 @@ def search_resumes(query: str) -> str:
 @tool
 def answer_from_resumes(question: str) -> str:
     """Answer a question using the resume knowledge base via RAG."""
-    result = rag_chain.invoke({"input": question})
-    # result typically contains keys: { 'input': ..., 'context': [...], 'answer': '...' }
-    return result.get("answer", str(result))
+    # rag_chain may be a Runnable (with .invoke) or a plain callable depending on fallback
+    try:
+        result = rag_chain.invoke({"input": question})  # type: ignore[attr-defined]
+    except Exception:
+        result = rag_chain({"input": question})  # type: ignore[call-arg]
+    # Normalize outputs across versions
+    if isinstance(result, dict):
+        return (
+            result.get("answer")
+            or result.get("output")
+            or result.get("result")
+            or str(result)
+        )
+    return str(result)
 
 # ---- Agent ----
 agent = create_react_agent(
