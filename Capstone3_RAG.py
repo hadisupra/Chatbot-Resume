@@ -468,18 +468,18 @@ def _to_dict(obj: Any) -> Dict[str, Any]:
 
 # from sentence_transformers import SentenceTransformer
 
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+# embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-def embed(text):
-    return embedder.encode(text).tolist()
-def search_qdrant(query_text, collection="resumes", top_k=5):
-    vector = embed(query_text)
-    results = client.search(
-        collection_name=collection,
-        query_vector=vector,
-        limit=top_k
-    )
-    return results
+# def embed(text):
+#     return embedder.encode(text).tolist()
+# def search_qdrant(query_text, collection="resumes", top_k=5):
+#     vector = embed(query_text)
+#     results = client.search(
+#         collection_name=collection,
+#         query_vector=vector,
+#         limit=top_k
+#     )
+#     return results
 
 
 
