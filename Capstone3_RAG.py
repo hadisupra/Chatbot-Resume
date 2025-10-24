@@ -466,7 +466,7 @@ def _to_dict(obj: Any) -> Dict[str, Any]:
 #     return calls
 # ---- Render existing messages ----
 
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
