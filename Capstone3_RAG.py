@@ -544,17 +544,17 @@ with st.sidebar:
                 icon = "👤" if role.lower().startswith("human") else "🤖"
                 st.markdown(f"{icon} **{role} {i}:** {m.get('content','')}")
 
-# with st.sidebar.expander("🔍 Qdrant Search Results", expanded=False):
-#     hits = st.session_state.get("qdrant_hits", [])
+with st.sidebar.expander("🔍 Qdrant Search Results", expanded=False):
+    hits = st.session_state.get("qdrant_hits", [])
 
-#     if not hits:
-#         st.caption("No search results available.")
-#     else:
-#         for i, hit in enumerate(hits):
-#             st.markdown(f"**Result {i+1}**")
-#             st.write(hit.payload.get("text", "No text found"))
-#             st.write(f"Score: {hit.score:.4f}")
-#             st.divider()
+    if not hits:
+        st.caption("No search results available.")
+    else:
+        for i, hit in enumerate(hits):
+            st.markdown(f"**Result {i+1}**")
+            st.write(hit.payload.get("text", "No text found"))
+            st.write(f"Score: {hit.score:.4f}")
+            st.divider()
 
 
 # Tool call details disabled for now
