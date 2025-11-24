@@ -582,27 +582,27 @@ with st.sidebar:
                         st.code(tool["output"])
 
 
-    with st.expander("Tool calls 🛠️", expanded=False):
-        logs = st.session_state.get("tool_logs") or []
-        if logs:
-            options = [f"Turn {i+1} @ {r.get('time','')}: {r.get('question','')[:40]}…" for i, r in enumerate(logs)]
-            sel = st.selectbox("Select a turn", options=options, index=len(options)-1, key="tool_calls_turn_selector")
-            sel_idx = options.index(sel) if sel in options else len(options)-1
-            run = logs[sel_idx]
-            tools = run.get("tools", [])
-            if not tools:
-                st.caption("No tools used")
-            for j, rec in enumerate(tools, 1):
-                name = rec.get("name") or "<unknown>"
-                args = rec.get("args")
-                out = rec.get("output")
-                st.markdown(f"**{j}. {name}**")
-                st.code(json.dumps(args, ensure_ascii=False, indent=2) if isinstance(args, (dict, list)) else str(args))
-                if out:
-                    st.caption("Output")
-                    st.code(out)
-        else:
-            st.caption("No tool calls yet.")
+    # with st.expander("Tool calls 🛠️", expanded=False):
+    #     logs = st.session_state.get("tool_logs") or []
+    #     if logs:
+    #         options = [f"Turn {i+1} @ {r.get('time','')}: {r.get('question','')[:40]}…" for i, r in enumerate(logs)]
+    #         sel = st.selectbox("Select a turn", options=options, index=len(options)-1, key="tool_calls_turn_selector")
+    #         sel_idx = options.index(sel) if sel in options else len(options)-1
+    #         run = logs[sel_idx]
+    #         tools = run.get("tools", [])
+    #         if not tools:
+    #             st.caption("No tools used")
+    #         for j, rec in enumerate(tools, 1):
+    #             name = rec.get("name") or "<unknown>"
+    #             args = rec.get("args")
+    #             out = rec.get("output")
+    #             st.markdown(f"**{j}. {name}**")
+    #             st.code(json.dumps(args, ensure_ascii=False, indent=2) if isinstance(args, (dict, list)) else str(args))
+    #             if out:
+    #                 st.caption("Output")
+    #                 st.code(out)
+    #     else:
+    #         st.caption("No tool calls yet.")
         st.divider()
 
         st.subheader("Chat export")
